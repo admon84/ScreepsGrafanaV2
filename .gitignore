@@ -1,9 +1,10 @@
 # Files
 .env
+users.json
 
 # Folders
-node_modules
-logs
-go-carbon-storage
-grafanaConfig
-traefikConfig
+node_modules/
+logs/
+go-carbon-storage/
+config/
+secrets/

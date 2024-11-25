@@ -29,6 +29,7 @@ services:
       - ./config/grafana/provisioning:/etc/grafana/provisioning
       - ./logs/grafana:/var/log/grafana
       - grafana_data:/var/lib/grafana
+      - ./secrets:/etc/secrets
     ports:
       - ${GRAFANA_PORT}:3000
     environment:

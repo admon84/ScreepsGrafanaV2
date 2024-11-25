@@ -1,5 +1,5 @@
 {
-  "name": "screeps-grafana-go_carbon",
+  "name": "screeps-grafana",
   "version": "1.1.0",
   "scripts": {
     "start": "docker compose up -d",

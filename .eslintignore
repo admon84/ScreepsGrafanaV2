@@ -1,8 +1,8 @@
 # Folders
 
-node_modules
-grafanaConfig
+node_modules/
 go-carbon-storage/
+secrets/
 
 ## File types
 
