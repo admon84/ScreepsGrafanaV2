@@ -1,11 +1,10 @@
-# Folders
-
+<!-- Folders -->
 node_modules/
 go-carbon-storage/
 secrets/
+logs/
 
-## File types
-
+<!-- Files -->
 **/*.log
 .eslintrc.js
 **/*.md

@@ -7,10 +7,10 @@ networks:
     driver: bridge
 
 x-logging: &default-logging
-  driver: "local"
+  driver: local
   options:
-    max-size: "20m"
-    max-file: "5"
+    max-size: 20m
+    max-file: 5
 
 services:
   graphite:
@@ -25,11 +25,11 @@ services:
   grafana:
     image: grafana/grafana-oss:9.3.6-ubuntu
     volumes:
+      - ./secrets:/etc/secrets
       - ./config/grafana/grafana.ini:/etc/grafana/grafana.ini
       - ./config/grafana/provisioning:/etc/grafana/provisioning
       - ./logs/grafana:/var/log/grafana
       - grafana_data:/var/lib/grafana
-      - ./secrets:/etc/secrets
     ports:
       - ${GRAFANA_PORT}:3000
     environment:
@@ -38,6 +38,12 @@ services:
       - GF_DOMAIN=${HOSTNAME}
       - GF_SMTP_FROM_ADDRESS=${EMAIL_ADDRESS}
       - GF_AUTH_ANONYMOUS_ENABLED=${ANONYMOUS_AUTH_ENABLED}
+      - GF_EXTERNAL_IMAGE_STORAGE_PROVIDER=gcs
+      - GF_EXTERNAL_IMAGE_STORAGE_GCS_KEY_FILE=/etc/secrets/gcs-key.json
+      - GF_EXTERNAL_IMAGE_STORAGE_GCS_BUCKET=screeps-grafana
+      - GF_EXTERNAL_IMAGE_STORAGE_GCS_PATH=
+      - GF_EXTERNAL_IMAGE_STORAGE_GCS_ENABLE_SIGNED_URLS=false
+      - GF_EXTERNAL_IMAGE_STORAGE_GCS_SIGNED_URL_EXPIRATION=3600
     healthcheck:
       test: "curl -fsSL -o /dev/null http://localhost:${GRAFANA_PORT}/login"
       interval: 10s

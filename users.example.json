@@ -1,17 +1,18 @@
 [
   {
-    "username": "YourUsernameHere",
     "type": "mmo",
-    "shards": ["shard<SHARDNUMBER>"],
-    "password": "YourPasswordHere"
+    "shards": ["shard0", "shard1", "shard2", "shard3"],
+    "username": "<USERNAME>",
+    "token": "<TOKEN>",
+    "segment": 0
   },
   {
-    "username": "YourEmailHere",
-    "replaceName": "YourUsernameHere",
+    "type": "private",
     "host": "localhost",
     "port": 21025,
-    "type": "private",
-    "shards": ["<SHARD NAME>"],
-    "password": "YourPasswordHere"
+    "shards": ["shard0"],
+    "username": "<EMAIL>",
+    "replaceName": "<USERNAME>",
+    "password": "<PASSWORD>"
   }
 ]
