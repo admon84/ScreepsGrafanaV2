@@ -291,7 +291,7 @@ const handleAllUsers = async (usersByHost) => {
   await Promise.all(promises);
 };
 
-cron.schedule('*/10 * * * * *', async () => {
+cron.schedule('*/30 * * * * *', async () => {
   console.log(`Cron event hit: ${new Date()}`);
   cronLogger.info(`Cron event hit: ${new Date()}`);
 
