@@ -1,37 +1,37 @@
 // eslint-disable-next-line import/no-unresolved
-import cron from "node-cron";
+import cron from 'node-cron';
 // eslint-disable-next-line import/no-unresolved
-import graphite from "graphite";
-import { createLogger, format, transports } from "winston";
+import graphite from 'graphite';
+import { createLogger, format, transports } from 'winston';
 // eslint-disable-next-line import/no-unresolved
-import "winston-daily-rotate-file";
+import 'winston-daily-rotate-file';
 // eslint-disable-next-line import/no-unresolved
-import express from "express";
-import ApiFunc from "./apiFunctions.js";
-import loadUsers from "./users.js";
+import express from 'express';
+import ApiFunc from './apiFunctions.js';
+import loadUsers from './users.js';
 
 const app = express();
 const pushStatusPort = Number(process.env.PUSH_STATUS_PORT);
 let lastUpload = new Date().getTime();
 
 const pushTransport = new transports.DailyRotateFile({
-  filename: "logs/push-%DATE%.log",
-  auditFile: "logs/push-audit.json",
-  datePattern: "YYYY-MM-DD",
+  filename: 'logs/push-%DATE%.log',
+  auditFile: 'logs/push-audit.json',
+  datePattern: 'YYYY-MM-DD',
   zippedArchive: true,
-  maxSize: "20m",
-  maxFiles: "14d",
+  maxSize: '20m',
+  maxFiles: '14d',
 });
 const cronTransport = new transports.DailyRotateFile({
-  filename: "logs/cron-%DATE%.log",
-  auditFile: "logs/cron-audit.json",
-  datePattern: "YYYY-MM-DD",
+  filename: 'logs/cron-%DATE%.log',
+  auditFile: 'logs/cron-audit.json',
+  datePattern: 'YYYY-MM-DD',
   zippedArchive: true,
-  maxSize: "20m",
-  maxFiles: "14d",
+  maxSize: '20m',
+  maxFiles: '14d',
 });
 
-const client = graphite.createClient("plaintext://graphite:2003/");
+const client = graphite.createClient('plaintext://graphite:2003/');
 const { combine, timestamp, prettyPrint } = format;
 const logger = createLogger({
   format: combine(timestamp(), prettyPrint()),
@@ -43,16 +43,32 @@ const cronLogger = createLogger({
   transports: [cronTransport],
 });
 
+/**
+ * Extracts the error message from an error object
+ * @param {string} message
+ * @param {unknown} error
+ */
+const getErrorMessage = (message, error) => {
+  if (error instanceof Error) {
+    console.error(message, error.message);
+  } else {
+    console.error(message, 'Unknown error\n', error);
+  }
+};
+
 class ManageStats {
   /** @type {Record<string, {[shard: string]: UserInfo}>} */
   groupedStats;
+
+  /** @type {Record<string, number>} */
+  static lastMemoryCall = {};
 
   constructor() {
     this.groupedStats = {};
   }
 
   /**
-   *
+   * Handles the users for a specific host
    * @param {string} host
    * @param {UserInfo[]} hostUsers
    * @returns
@@ -61,20 +77,35 @@ class ManageStats {
     console.log(`[${host}] Handling Users`);
     const now = new Date();
 
-    const beginningOfMinute = now.getSeconds() < 15;
-    if (host === "screeps.com" && !beginningOfMinute) {
-      console.log(`[${host}] not the right time to get stats, skipping`);
-      return;
-    }
-
     /** @type {(Promise<void>)[]} */
     const getStatsFunctions = [];
     for (const user of hostUsers) {
       try {
         if (user.host !== host) continue;
 
-        const shard = user.shards[now.getMinutes() % user.shards.length];
-        getStatsFunctions.push(this.getStats(user, shard));
+        let shard;
+        if (user.segment === undefined) {
+          shard = user.shards[now.getMinutes() % user.shards.length];
+        } else {
+          shard = user.shards[now.getSeconds() % user.shards.length];
+        }
+
+        const username = user.replaceName ? user.replaceName : user.username;
+        const userStatsKey = (user.prefix ? `${user.prefix}.` : '') + username;
+        const userShardKey = `${host}_${user.type}_${userStatsKey}_${shard}`;
+
+        const lastCall = ManageStats.lastMemoryCall[userShardKey] || 0;
+        const timeSinceLastCall = (now.getTime() - lastCall) / 1000;
+
+        if (user.segment === undefined) {
+          if (timeSinceLastCall >= 60) {
+            getStatsFunctions.push(this.getStats(user, shard));
+            ManageStats.lastMemoryCall[userShardKey] = now.getTime();
+          }
+        } else if (timeSinceLastCall >= 10) {
+          getStatsFunctions.push(this.getStats(user, shard));
+          ManageStats.lastMemoryCall[userShardKey] = now.getTime();
+        }
       } catch (error) {
         logger.error(error);
       }
@@ -89,7 +120,7 @@ class ManageStats {
       stats: this.groupedStats,
     };
 
-    if (!host.startsWith("screeps.com")) {
+    if (!host.startsWith('screeps.com')) {
       const serverStats = await ApiFunc.getServerStats(host, hostUsers[0].port);
       const adminUtilsServerStats = await ApiFunc.getAdminUtilsServerStats(host, hostUsers[0].port);
       if (adminUtilsServerStats) {
@@ -106,7 +137,7 @@ class ManageStats {
         }
       }
       console.log(
-        `[${host}] Server stats: ${serverStats ? "yes" : "no"}, adminUtils: ${adminUtilsServerStats ? "yes" : "no"}`
+        `[${host}] Server stats: ${serverStats ? 'yes' : 'no'}, adminUtils: ${adminUtilsServerStats ? 'yes' : 'no'}`,
       );
       stats.serverStats = serverStats;
       stats.adminUtilsServerStats = adminUtilsServerStats;
@@ -123,20 +154,20 @@ class ManageStats {
       typesPushed.push(host);
     }
     if (stats.serverStats) {
-      typesPushed.push("server stats");
+      typesPushed.push('server stats');
     }
     if (stats.adminUtilsServerStats) {
-      typesPushed.push("admin-utils stats");
+      typesPushed.push('admin-utils stats');
     }
     if (typesPushed.length) {
-      logger.info(`> [${host}] Pushed ${typesPushed.join(", ")}`);
+      logger.info(`> [${host}] Pushed ${typesPushed.join(', ')}`);
     } else {
       logger.info(`> [${host}] Pushed no stats`);
     }
   }
 
   /**
-   *
+   * Adds leaderboard data to the stats
    * @param {UserInfo} userinfo
    * @returns {Promise<{ rank: number, score: number }>}
    */
@@ -159,14 +190,14 @@ class ManageStats {
    * @returns
    */
   static async getLoginInfo(userinfo) {
-    if (userinfo.type === "private") {
+    if (userinfo.type === 'private') {
       userinfo.token = await ApiFunc.getPrivateServerToken(userinfo);
     }
     return userinfo.token;
   }
 
   /**
-   *
+   * Gets the stats for a user
    * @param {UserInfo} userinfo
    * @param {string} shard
    * @returns {Promise<void>}
@@ -193,7 +224,7 @@ class ManageStats {
   }
 
   /**
-   *
+   * Reports the stats to the graphite server
    * @param {*} stats
    * @returns
    */
@@ -205,23 +236,23 @@ class ManageStats {
       console.debug(`Writing stats ${JSON.stringify(stats)}`);
       client.write(
         {
-          [`${process.env.PREFIX ? `${process.env.PREFIX}.` : ""}screeps`]: stats,
+          [`${process.env.PREFIX ? `${process.env.PREFIX}.` : ''}screeps`]: stats,
         },
         (err) => {
           if (err) {
-            console.log(err);
+            console.error(err);
             logger.error(err);
             resolve(false);
           }
           lastUpload = new Date().getTime();
           resolve(true);
-        }
+        },
       );
     });
   }
 
   /**
-   *
+   * Pushes the stats to the grouped stats
    * @param {UserInfo} userinfo
    * @param {*} stats
    * @param {string} shard
@@ -231,7 +262,7 @@ class ManageStats {
     const statSize = Object.keys(stats).length;
     if (statSize === 0) return;
     const username = userinfo.replaceName ? userinfo.replaceName : userinfo.username;
-    const userStatsKey = (userinfo.prefix ? `${userinfo.prefix}.` : "") + username;
+    const userStatsKey = (userinfo.prefix ? `${userinfo.prefix}.` : '') + username;
 
     console.log(`[${userinfo.host}] Pushing ${statSize} stats for ${userStatsKey} in ${shard}`);
     if (!this.groupedStats[userStatsKey]) {
@@ -242,7 +273,25 @@ class ManageStats {
   }
 }
 
-cron.schedule("*/30 * * * * *", async () => {
+/**
+ *
+ * @param {Record<string, UserInfo[]>} usersByHost
+ */
+const handleAllUsers = async (usersByHost) => {
+  const promises = [];
+
+  for (const [host, usersForHost] of Object.entries(usersByHost)) {
+    promises.push(
+      new ManageStats().handleUsers(host, usersForHost).catch((error) => {
+        cronLogger.error(getErrorMessage(`Error handling users for host ${host}:`, error));
+      }),
+    );
+  }
+
+  await Promise.all(promises);
+};
+
+cron.schedule('*/10 * * * * *', async () => {
   console.log(`Cron event hit: ${new Date()}`);
   cronLogger.info(`Cron event hit: ${new Date()}`);
 
@@ -251,7 +300,7 @@ cron.schedule("*/30 * * * * *", async () => {
     const users = await loadUsers();
 
     if (!users || users.length === 0) {
-      cronLogger.warn("No users data found");
+      cronLogger.warn('No users data found');
       return;
     }
 
@@ -262,15 +311,9 @@ cron.schedule("*/30 * * * * *", async () => {
       return group;
     }, /** @type {Record<string, UserInfo[]>} */ ({}));
 
-    for (const [host, usersForHost] of Object.entries(usersByHost)) {
-      try {
-        await new ManageStats().handleUsers(host, usersForHost);
-      } catch (/** @type any */ error) {
-        cronLogger.error(`Error handling users for host ${host}: ${error.message}`);
-      }
-    }
-  } catch (/** @type any */ error) {
-    cronLogger.error(`Error in cron job: ${error.message}`);
+    await handleAllUsers(usersByHost);
+  } catch (error) {
+    cronLogger.error(getErrorMessage('Error in cron job:', error));
   }
 });
 
@@ -279,7 +322,7 @@ if (pushStatusPort) {
     console.log(`App listening at http://localhost:${pushStatusPort}`);
   });
 
-  app.get("/", (req, res) => {
+  app.get('/', (req, res) => {
     const diffCompleteMinutes = Math.ceil(Math.abs(new Date().getTime() - lastUpload) / (1000 * 60));
     res.json({
       result: diffCompleteMinutes < 300,
